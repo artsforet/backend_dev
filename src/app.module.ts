@@ -15,7 +15,7 @@ import { ServeStaticModule } from '@nestjs/serve-static';
   imports: [
     TypeOrmModule.forRoot({
       type: 'mysql',
-      host: 'localhost',
+      host: 'db-mp8i3.pub-cdb.ntruss.com',
       port: 3306,
       username: 'arts',
       password: 'ArtsForest1234',
