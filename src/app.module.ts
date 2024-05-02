@@ -19,7 +19,7 @@ import { ServeStaticModule } from '@nestjs/serve-static';
       port: 3306,
       username: 'arts',
       password: 'ArtsForest1234',
-      database: 'streaming_mysql',
+      database: 'streaming',
       autoLoadEntities: true,
       synchronize: true,
       // logging: true, // 디버그 로그 활성화
