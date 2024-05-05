@@ -15,12 +15,13 @@ import { ServeStaticModule } from '@nestjs/serve-static';
   imports: [
     TypeOrmModule.forRoot({
       type: 'mysql',
-      host: 'localhost',
+      host: 'db-mp8i3.pub-cdb.ntruss.com',
       port: 3306,
-      username: 'root',
+      username: 'arts',
       password: 'ArtsForest1234',
-      database: 'streaming',
+      database: 'streaming_mysql',
       autoLoadEntities: true,
+      synchronize: true,
       // logging: true, // 디버그 로그 활성화
     }),
     TypeOrmModule.forFeature([MusicRepository, PlaylistRepository]),
