@@ -1,19 +1,24 @@
 import {
   BadRequestException,
   Body,
-  Controller, Get,
+  Controller,
+  Get,
   Post,
   Req,
   Res,
-  UnauthorizedException
-} from "@nestjs/common";
+  UnauthorizedException,
+  UseGuards,
+  Request as NestRequestType,
+  Param,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import * as bcryptjs from 'bcryptjs';
 import { JwtService } from '@nestjs/jwt';
-import { Request, Response } from 'express';
+import { Request as ExpressRequest, Response } from 'express';
 import { TokenService } from './token.service';
 import { MoreThanOrEqual } from 'typeorm';
+import { JwtAuthGuard } from './jwt-auth.guard';
 // import { AuthCredentailDto } from './dto/dto/auth-credential.dto';
 @ApiTags('AUTH')
 @Controller('auth')
@@ -69,7 +74,6 @@ export class AuthController {
 
     await this.tokenService.save({
       user_id: user.id,
-      token: refreshToken,
       expired_at,
     });
 
@@ -83,10 +87,13 @@ export class AuthController {
     };
   }
   @Get('user')
-  async user(@Req() request: Request) {
+  async user(@Req() expressReq: ExpressRequest) {
     try {
       // const accessToken = request.headers.authorization.replace('Bearer', '');
-      const accessToken = request.headers.authorization.replace('Bearer', '');
+      const accessToken = expressReq.headers.authorization.replace(
+        'Bearer',
+        '',
+      );
       const { id } = await this.jwtService.verifyAsync(accessToken);
       const { password, ...data } = await this.authService.findOne({
         where: { id },
@@ -152,11 +159,11 @@ export class AuthController {
 
   @Post('refresh')
   async refresh(
-    @Req() request: Request,
+    @Req() expressReq: ExpressRequest,
     @Res({ passthrough: true }) response: Response,
   ) {
     try {
-      const refreshToken = request.cookies['refresh_token'];
+      const refreshToken = expressReq.cookies['refresh_token'];
       const { id } = await this.jwtService.verifyAsync(refreshToken);
       const tokenEntity = await this.tokenService.findOne({
         where: {
@@ -177,6 +184,32 @@ export class AuthController {
     } catch (errorMessage) {
       throw new UnauthorizedException();
     }
+  }
+
+  @Get(':id')
+  async getUser(@Param('id') id: number) {
+    return this.authService.userForPlaylist(id);
+  }
+
+  @Get('/find/:id/playlists')
+  async getUserPlaylists(@Param('id') id: number) {
+    return this.authService.findPlaylistsByUserId(id);
+  }
+
+  @Post(':id/save')
+  async addSongToPlaylist(
+    @Param('id') id: number,
+    @Body('title') title: string,
+  ) {
+    return this.authService.addSongToPlaylist(id, title);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('profile')
+  async getProfile(
+    @Req() nestReq: any, // NestJS Request 객체를 타입으로 지정
+  ) {
+    return nestReq.user;
   }
 
   @Post('logout')

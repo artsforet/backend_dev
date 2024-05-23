@@ -4,7 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as cookieParser from 'cookie-parser';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import * as AWS from 'aws-sdk';
+import { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface';
 
 async function bootstrap() {
   const logger = new Logger();
@@ -12,10 +12,10 @@ async function bootstrap() {
   // const configService = app.get(ConfigService);
   // const port = configService.get<string>('SERVER_PORT');
   app.setGlobalPrefix('api');
-  app.enableCors({
-    origin: true,
-    credentials: true,
-  });
+  // app.enableCors({
+  //   origin: true,
+  //   credentials: true,
+  // });
   // Swagger API 문서화
   const config = new DocumentBuilder()
     .addBearerAuth()
@@ -28,13 +28,19 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
 
   // AWS 자격 증명 설정
-  AWS.config.update({
-    accessKeyId: process.env.NAVER_CLOUD_ACCESS_KEY_ID,
-    secretAccessKey: process.env.NAVER_CLOUD_SECRET_ACCESS_KEY,
-    // region: ncloudRegion,
-  });
+  // AWS.config.update({
+  //   accessKeyId: process.env.NAVER_CLOUD_ACCESS_KEY_ID,
+  //   secretAccessKey: process.env.NAVER_CLOUD_SECRET_ACCESS_KEY,
+  //   // region: ncloudRegion,
+  // });
   const port = 8000;
   app.use(cookieParser());
+  const corsOptions: CorsOptions = {
+    origin: 'http://localhost:8081', // 프론트엔드의 도메인
+    credentials: true,
+  };
+  app.enableCors(corsOptions);
+
   app.listen(port, () => {
     // app.listen(process.env.PORT || port || 8000, () => {
     logger.log(`Application running on port ${port}`);

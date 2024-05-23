@@ -1,16 +1,25 @@
-// jwt.strategy.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { AuthService } from './auth.service';
+import { AuthService } from "./auth.service";
+import { Request } from 'express';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(private readonly authService: AuthService) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: (req: Request) => {
+        let token = null;
+        if (req && req.headers) {
+          token = req.headers.authorization;
+          if (token && token.startsWith('Bearer ')) {
+            token = token.slice(7, token.length); // "Bearer " 접두사 잘라내기
+          }
+        }
+        return token;
+      },
       ignoreExpiration: false,
-      secretOrKey: 'secret', // JWT 서명에 사용된 비밀 키와 동일한 값을 입력합니다.
+      secretOrKey: 'secret', // 환경 변수로 관리하는 것이 좋습니다
     });
   }
   // async validate(payload: any) {
@@ -18,4 +27,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   //   // 주로 사용자 조회 등의 비즈니스 로직을 수행합니다.
   //   return this.authService.validateUser(payload); // AuthService에서 사용자 검증을 수행합니다.
   // }
+
+  async validate(payload: any) {
+    const user = await this.authService.validateUserById(payload.id);
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+    return { userId: user.id, email: payload.email };
+  }
 }

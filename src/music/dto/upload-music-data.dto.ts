@@ -37,12 +37,12 @@ export class UploadMusicDataDto {
   @ApiProperty({ type: [String] })
   @IsOptional()
   @IsArray()
-  genre?: string[];
+  genre?: string;
 
   @ApiProperty({ type: [String] })
   @IsOptional()
   @IsString({ each: true })
-  tags?: string[];
+  tags?: string;
 
   @ApiProperty()
   @IsOptional()
@@ -68,7 +68,7 @@ export class UploadMusicDataDto {
   @ApiProperty()
   @IsOptional()
   @IsArray()
-  composer?: string[];
+  composer?: string;
 
   @ApiProperty()
   @IsOptional()
@@ -78,5 +78,5 @@ export class UploadMusicDataDto {
   @ApiProperty()
   @IsOptional()
   @IsArray()
-  lyrics?: string[];
+  lyrics?: string;
 }

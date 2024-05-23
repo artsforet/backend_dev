@@ -20,6 +20,8 @@ import { MusicRepository } from '../music/music.repository';
 import { PlaylistRepository } from '../playlist/playlist.repository';
 import { HistoryRepository } from '../history/history.repository';
 import { User } from './auth.entity';
+import { JwtStrategy } from "./jwt.strategy";
+import { Playlist } from "../playlist/playlist.entity";
 
 @Module({
   imports: [
@@ -27,17 +29,21 @@ import { User } from './auth.entity';
       Token,
       User,
       MusicRepository,
-      PlaylistRepository,
+      Playlist,
       HistoryRepository,
       CommentRepository,
     ]),
-    JwtModule.register({
-      secret: 'secret',
-      signOptions: { expiresIn: '1w' },
+    JwtModule.registerAsync({
+      useFactory: async () => ({
+        secret: 'secret',
+        signOptions: { expiresIn: '1w' },
+      }),
+      // secret: 'secret',
+      // signOptions: { expiresIn: '1w' },
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, TokenService],
+  providers: [AuthService, TokenService, JwtStrategy],
   exports: [AuthService],
 })
 export class AuthModule {}

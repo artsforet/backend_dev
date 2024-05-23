@@ -4,17 +4,26 @@ import {
   Get,
   Param,
   Post,
+  Req,
   Res,
   UploadedFile,
   UseInterceptors,
   Request,
+  UploadedFiles,
+  UnauthorizedException,
+  NotFoundException,
+  Logger,
+  Query,
   // Post,
   // UploadedFile,
   // UseInterceptors,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { MusicService } from './music.service';
-import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  FileFieldsInterceptor,
+  FileInterceptor,
+} from '@nestjs/platform-express';
 import { Music } from './music.entity';
 import { v4 as uuidv4 } from 'uuid';
 import { Response } from 'express';
@@ -33,102 +42,169 @@ import {
 import * as fs from 'fs';
 import * as util from 'util';
 import * as stream from 'stream';
+import { UploadMusicDataDto } from './dto/upload-music-data.dto';
+import { Readable } from 'stream';
 const pipeline = util.promisify(stream.pipeline);
 
 @ApiTags('MUSIC CONTROLLER')
 @Controller('music')
 export class MusicController {
+  private readonly logger = new Logger(MusicController.name);
+
   constructor(
     private musicService: MusicService,
     private authService: AuthService,
   ) {}
 
-  // @ApiOperation({
-  //   summary: '네이버 스토리지 버켓 조회',
-  //   description: '버켓을 조회한다',
-  // })
-  // @ApiQuery({ required: false, name: 'option' })
-  // @ApiResponse({
-  //   status: 200,
-  //   description:
-  //     'Music[] 또는 { genre: "string", musics: Music[] }[]의 데이터를 반환받는다.',
-  // })
-  // @Get('/bucketmusic')
-  // async BucketObject() {
-  //   try {
-  //     const buckets = await getBucketMusic();
-  //     return { success: true, buckets };
-  //   } catch (error) {
-  //     return { success: false, error: 'Failed to fetch bucket list' };
-  //   }
-  // }
-
-  @Get('db')
-  async getMusicFromNaverStoragelist() {
+  @Get('/audio/:bucketName/:key')
+  async getAudio(
+    @Param('bucketName') bucketName: string,
+    @Param('key') key: string,
+    @Res() res: Response,
+  ) {
     try {
-      const musicData = await this.musicService.getMusicFromNaverStorage();
-      console.log('MUSIC_DATA', musicData);
-      return musicData;
+      const music = await this.musicService.getMusicByKey(bucketName, key);
+      if (!music) {
+        return res.status(404).json({ message: 'Music not found' });
+      }
+
+      const params = {
+        Bucket: bucketName,
+        Key: key,
+      };
+      const response = await s3.getObject(params).promise();
+
+      res.set('Content-Type', 'audio/mpeg');
+      res.send({
+        audioBuffer: response.Body,
+        imageUrl: music.imageUrl,
+      });
     } catch (error) {
-      // 에러 핸들링
-      console.error(error);
-      return { error: 'Failed to fetch music data' };
+      console.error('Error streaming audio:', error);
+      res.status(500).send('Server error');
     }
   }
 
   @Post('upload')
-  @UseInterceptors(FileInterceptor('mp3_file'), FileInterceptor('image_file'))
-  async uploadFiles(
-    @Request() req,
-    @UploadedFile() mp3File: Express.Multer.File,
-    @UploadedFile() imageFile: Express.Multer.File,
-    @Body('title') title: any,
-    @Body('filename') filename: string,
-    @Body('permalink') permalink: string,
-    @Body('link') link: string,
-    @Body('duration') duration: number,
-    @Body('status') status: string, // status 파라미터 추가
-    @Body('album') album: string, // album 파라미터 추가
-    @Body('coverFilename') coverFilename: string, // album 파라미터 추가
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'audio', maxCount: 1 },
+      { name: 'image', maxCount: 1 },
+    ]),
+  )
+  async uploadMusic(
+    @Body() music: UploadMusicDataDto,
+    @UploadedFiles()
+    files: { audio?: Express.Multer.File[]; image?: Express.Multer.File[] },
   ) {
     try {
-      const uuid = generatePermalink();
-      const music = new Music();
-      music.title = title;
-      music.filename = mp3File.originalname; // mp3File이 존재하는 경우에만 originalname 사용
-      music.link = link;
-      music.duration = duration;
-      music.permalink = uuid;
-      music.status = status; // status 할당
-      music.album = album; // album 할당
-      music.coverFilename = coverFilename; // album 할당
-      await this.musicService.save(music);
+      const audioFile = files.audio?.[0];
 
-      const user = req.user;
-
-      if (!user) {
-        console.log('로그인 해야 음악을 업로드할 수 있습니다.');
+      if (!audioFile) {
+        throw new Error('Audio file is missing');
       }
-      const mp3UploadUrl = await this.musicService.uploadMp3Files(
-        mp3File,
-        user,
-        music,
-      );
-      const imageUploadResult = await uploadImageFile(imageFile, user, music);
 
-      return { mp3UploadUrl, imageUploadResult };
-    } catch (errorMessage) {
-      console.log(errorMessage);
+      const uuid = uuidv4();
+
+      const metadata = {
+        'x-amz-meta-permalink': uuid,
+      };
+
+      const audioUrl = await this.musicService.uploadFile(
+        'arts',
+        `${audioFile.originalname}`,
+        audioFile.buffer,
+        metadata,
+      );
+
+      let imageUrl: string | null = null;
+      if (files.image?.[0]) {
+        const imageFile = files.image[0];
+        imageUrl = await this.musicService.uploadFile(
+          'album-cover',
+          `${imageFile.originalname}`,
+          imageFile.buffer,
+          metadata,
+        );
+
+        if (!imageUrl) {
+          throw new Error('Image file upload failed');
+        }
+      }
+
+      const musicData = {
+        title: music.title,
+        artist: music.artist,
+        album: music.album,
+        permalink: uuid,
+        duration: music.duration,
+        status: music.status,
+        filename: audioFile.originalname,
+        coverFilename: files.image?.[0]?.originalname ?? null,
+        link: '링크',
+        audioUrl: audioUrl,
+        imageUrl: imageUrl || '',
+      };
+
+      return await this.musicService.createMusic(musicData);
+    } catch (error) {
+      throw new Error(`Music upload failed: ${error.message}`);
     }
   }
 
-  @Get(':permalink')
-  async findByPermalink(@Param('permalink') permalink: string) {
-    return this.musicService.findByPermalink(permalink);
+  @Get('/mp3/:filename')
+  async getMp3(@Param('filename') filename: string, @Res() res: Response) {
+    const bucketName = 'arts';
+    const key = filename;
+    try {
+      const fileBuffer = await this.musicService.getObject(bucketName, key);
+      const fileStream = new Readable();
+      fileStream.push(fileBuffer);
+      fileStream.push(null); // 스트림의 끝을 표시
+
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Content-Disposition', `inline; filename=${filename}`);
+      fileStream.pipe(res);
+    } catch (error) {
+      this.logger.error(
+        `Failed to fetch MP3 file: ${error.message}`,
+        error.stack,
+      );
+      res.status(500).send('Error fetching the MP3 file');
+    }
   }
-  @Get('getAll')
-  async getAllMusic(): Promise<Music[]> {
-    return this.musicService.getAllMusic();
+
+  @Get(':id')
+  async getMusic(@Param('id') id: number): Promise<any> {
+    const music = await this.musicService.getMusicById(id);
+    if (!music) {
+      throw new NotFoundException('Music not found');
+    }
+    return {
+      id: music.id,
+      title: music.title,
+      artist: music.artist,
+      album: music.album,
+      permalink: music.permalink,
+      duration: music.duration,
+      status: music.status,
+      filename: music.filename,
+      link: music.link,
+      audioUrl: music.audioUrl,
+      imageUrl: music.imageUrl,
+    };
+  }
+
+  // @Get(':permalink')
+  // async findByPermalink(@Param('permalink') permalink: string) {
+  //   return this.musicService.findByPermalink(permalink);
+  // }
+  @Get('/get/table')
+  async findAllWithPagination(
+    @Query('limit') limit = 10,
+    @Query('offset') offset = 0,
+  ): Promise<Music[]> {
+    return this.musicService.findAllWithPagination(limit, offset);
   }
 
   @Get('allBucket')
@@ -163,6 +239,16 @@ export class MusicController {
     return { message: 'Check complete', musicRecords };
   }
 
+  @Get('/find/albums')
+  async getAlbumNames(): Promise<string[]> {
+    return await this.musicService.getAlbumNames();
+  }
+
+  @Get('albums/:albumName/songs')
+  async getSongsByAlbum(@Param('albumName') albumName: string): Promise<any> {
+    return this.musicService.getSongsByAlbum(albumName);
+  }
+
   @Get('/image/:bucketName/:key')
   async getImageWithMetadata(
     @Param('bucketName') bucketName: string,
@@ -190,30 +276,29 @@ export class MusicController {
     }
   }
 
-  @Get('/audio/:bucketName/:key')
-  async getAudio(
-    @Param('bucketName') bucketName: string,
-    @Param('key') key: string,
-    @Res() res: Response,
-  ) {
-    try {
-      const params = {
-        Bucket: bucketName, // 네이버 스토리지 버킷 이름
-        Key: key, // 파일 경로 및 이름
-      };
-      const response = await s3.getObject(params).promise();
-      console.log(response);
-      const audioBuffer = response.Body as Buffer;
-
-      res.set('Content-Type', 'audio/mpeg');
-      res.send(audioBuffer);
-      // 적절한 컨텐츠 타입을 설정합니다.
-      // res.setHeader('Content-Type', 'audio/mpeg'); // 예시로 'audio/mpeg'를 설정하고, 실제로 해당 컨텐츠 타입을 적절히 설정해야 합니다.
-    } catch (error) {
-      console.error('Error streaming audio:', error);
-      res.status;
-    }
-  }
+  // @Get('/audio/:bucketName/:key')
+  // async getAudio(
+  //   @Param('bucketName') bucketName: string,
+  //   @Param('key') key: string,
+  //   @Res() res: Response,
+  // ) {
+  //   try {
+  //     const params = {
+  //       Bucket: bucketName, // 네이버 스토리지 버킷 이름
+  //       Key: key, // 파일 경로 및 이름
+  //     };
+  //     const response = await s3.getObject(params).promise();
+  //     const audioBuffer = response.Body as Buffer;
+  //
+  //     res.set('Content-Type', 'audio/mpeg');
+  //     res.send(audioBuffer);
+  //     // 적절한 컨텐츠 타입을 설정합니다.
+  //     // res.setHeader('Content-Type', 'audio/mpeg'); // 예시로 'audio/mpeg'를 설정하고, 실제로 해당 컨텐츠 타입을 적절히 설정해야 합니다.
+  //   } catch (error) {
+  //     console.error('Error streaming audio:', error);
+  //     res.status;
+  //   }
+  // }
   // @Get('music_title/:permalink')
   // async getMusicTitle(
   //   @Param('permalink') permalink: string,
@@ -347,5 +432,4 @@ export class MusicController {
   // async getMusicByUUID(@Param('uuid') uuid: string): Promise<Music> {
   //   return this.musicService.getMusicByUUID(uuid);
   // }
-
 }

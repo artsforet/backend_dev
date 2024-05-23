@@ -7,9 +7,10 @@ import {
   OneToMany,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
 } from 'typeorm';
 import { Music } from '../music/music.entity';
-// import { Playlist } from '../playlist/playlist.entity';
+import { Playlist } from '../playlist/playlist.entity';
 // import { History } from '../history/history.entity';
 // import { ApiProperty } from '@nestjs/swagger';
 // import { Comment } from '../comment/comment.entity';
@@ -35,13 +36,16 @@ export class User {
   @Column()
   password: string;
 
+  @OneToMany(() => Music, (music) => music.user)
+  musics: Music[];
   // User Likes & Reposts
   // @ManyToMany(() => Music, (music) => music.likes, {
   //   cascade: true,
   //   onDelete: 'CASCADE',
   // })
+  @ManyToMany(() => Music, (music) => music.likedByUsers)
   @JoinTable()
-  likeMusics: Music[];
+  likedMusics: Music[];
   //
   // @ManyToMany(() => Music, (music) => music.reposts, {
   //   cascade: true,
@@ -73,18 +77,10 @@ export class User {
   // following: User[];
   //
   // // User Relation column
-  @OneToMany(() => Music, (music) => music.user, {
-    eager: true,
-    onDelete: 'CASCADE',
-  })
-  musics: Music[];
-  //
-  // @OneToMany(() => Playlist, (playlist) => playlist.user, {
-  //   eager: true,
-  //   onDelete: 'CASCADE',
-  // })
-  // playlists: Playlist[];
-  //
+
+  @OneToMany(() => Playlist, (playlist) => playlist.user)
+  playlists: Playlist[];
+
   // @OneToMany(() => Comment, (comment) => comment.user, { onDelete: 'CASCADE' })
   // comments: Comment[];
   //

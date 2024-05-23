@@ -4,11 +4,19 @@
 // import { UserRepository } from './user.repository';
 import { InjectRepository } from '@nestjs/typeorm';
 // import { AuthCredentailDto } from './dto/dto/auth-credential.dto';
-import { HttpException, Injectable, UnauthorizedException } from "@nestjs/common";
+import {
+  HttpException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 // import { HistoryRepository } from '../history/history.repository';
 // import typeorm_1 from 'typeorm';
 import { User } from './auth.entity';
+import { AuthCredentailDto } from './dto/dto/auth-credential.dto';
+import { JwtService } from '@nestjs/jwt';
+import { Playlist } from '../playlist/playlist.entity';
+import { PlaylistRepository } from '../playlist/playlist.repository';
 // import { History } from "../history/history.entity";
 
 // import { Music } from '../music/music.entity';
@@ -18,6 +26,9 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: any,
+    private readonly jwtService: JwtService,
+    @InjectRepository(Playlist)
+    private playlistRepository: PlaylistRepository,
     // @InjectRepository(History)
     // private historyRepository: HistoryRepository,
   ) {}
@@ -38,15 +49,71 @@ export class AuthService {
   async findOne(options) {
     return this.userRepository.findOne(options);
   }
-  // async validateUser(authCredentailDto: AuthCredentailDto) {
-  //   const { email, password } = authCredentailDto;
-  //   console.log(email);
-  //   const user = await this.userRepository.findUserByUsername(email);
-  //   console.log(user);
-  //   await this.comparePassword(password, user.password);
-  //   return { user };
+  async validateUser(authCredentailDto: AuthCredentailDto) {
+    const { email, password } = authCredentailDto;
+    const user = await this.userRepository.findByName(email);
+    await this.comparePassword(password, user.password);
+    return { user };
+  }
+  // 사용자 ID를 이용하여 사용자를 찾는 메서드
+  async findUserById(id: string) {
+    return this.findById(id);
+  }
+
+  async validateUserById(id: number): Promise<any> {
+    return this.findOne({ where: { id } });
+  }
+  async login(user: any) {
+    const payload = { username: user.username, sub: user.userId };
+    return {
+      access_token: this.jwtService.sign(payload),
+    };
+  }
+
+  async userForPlaylist(id: number): Promise<User> {
+    return this.userRepository.findOne({
+      where: { id },
+      relations: ['playlists'],
+    });
+  }
+
+  async addSongToPlaylist(userId: number, title: string): Promise<any> {
+    if (!this.playlistRepository[userId]) {
+      this.playlistRepository[userId] = [];
+    }
+    this.playlistRepository[userId].push(title);
+  }
+
+  async getPlaylistsByUserId(userId: string): Promise<Playlist> {
+    return this.playlistRepository[userId] || [];
+  }
+
+  // async addSongToPlaylist(userId: number, title: string): Promise<Playlist> {
+  //   const user = await this.userForPlaylist(userId);
+  //   const playlist = new Playlist();
+  //   playlist.name = title;
+  //   playlist.user = user;
+  //   return this.playlistRepository.save(playlist);
   // }
 
+
+  async findPlaylistsByUserId(userId: number): Promise<Playlist[]> {
+    const user = await this.userForPlaylist(userId);
+    console.log(user);
+    return user.playlists;
+  }
+
+  async Validate(req: any) {
+    // 여기서 사용자 정보를 가져오는 로직을 작성
+    // 예를 들어, 헤더에서 JWT 토큰을 추출하여 토큰을 해독하여 사용자 ID를 가져오고,
+    // 해당 ID를 이용하여 데이터베이스에서 사용자를 찾습니다.
+    // 실제로는 사용자 인증 방법에 따라 다를 수 있습니다.
+    const userId = req.user; // 예시: 요청 객체에서 사용자 ID를 가져옴
+    if (!userId) {
+      return null; // 사용자 ID가 없으면 null을 반환
+    }
+    return this.findUserById(userId); // 사용자 ID를 이용하여 사용자를 찾아 반환
+  }
   async save(body) {
     return this.userRepository.save(body);
   }

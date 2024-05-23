@@ -82,10 +82,6 @@ export class MusicRepository extends Repository<Music> {
       .addSelect('music.genreLower')
       .addSelect('music.tagsLower');
   }
-
-  async save(body, body2) {
-    return this.save(body, body2);
-  }
   // Create
   // async createMusic(createMusicData: MusicDataDto, user: User): Promise<Music> {
   //   const { permalink, tags, genre } = createMusicData;

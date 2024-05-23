@@ -30,44 +30,44 @@ export const s3 = new AWS.S3({
 
 // const client = new S3Client({});
 
-export async function uploadMusicData(
-  // buffer: Buffer,
-  // contentType: string,
-  file: Express.Multer.File,
-  // filename: string,
-  // metadata: any,
-  user: any,
-  music: any,
-) {
-  const bucket_name = 'arts';
-  const params = {
-    Bucket: bucket_name,
-    Key: String(file.originalname),
-    Body: file.buffer,
-    Metadata: {
-      permalink: music.permalink, // 고유한 아이디를 메타데이터에 추가
-    },
-  };
-  try {
-    // const downloadToken = uuidv4();
-    // const params: await s3.PutObjectRequest = {
-    //   Bucket: 'arts',
-    //   Key: filename,
-    //   Body: buffer,
-    //   ContentType: contentType,
-    // };
-
-    const result = await s3.upload(params).promise();
-    const filename = file.originalname;
-    const permalink = music.permalink;
-
-    // const bucket = 'arts';
-
-    return { result, filename, permalink };
-  } catch (e) {
-    throw new Error('Failed to upload file.');
-  }
-}
+// export async function uploadMusicData(
+//   // buffer: Buffer,
+//   // contentType: string,
+//   file: Express.Multer.File,
+//   // filename: string,
+//   // metadata: any,
+//   user: any,
+//   music: any,
+// ) {
+//   const bucket_name = 'arts';
+//   const params = {
+//     Bucket: bucket_name,
+//     Key: String(file.originalname),
+//     Body: file.buffer,
+//     Metadata: {
+//       permalink: music.permalink, // 고유한 아이디를 메타데이터에 추가
+//     },
+//   };
+//   try {
+//     // const downloadToken = uuidv4();
+//     // const params: await s3.PutObjectRequest = {
+//     //   Bucket: 'arts',
+//     //   Key: filename,
+//     //   Body: buffer,
+//     //   ContentType: contentType,
+//     // };
+//
+//     const result = await s3.upload(params).promise();
+//     const filename = file.originalname;
+//     const permalink = music.permalink;
+//
+//     // const bucket = 'arts';
+//
+//     return { result, filename, permalink };
+//   } catch (e) {
+//     throw new Error('Failed to upload file.');
+//   }
+// }
 
 export async function uploadImageFile(
   file: Express.Multer.File,
@@ -162,43 +162,43 @@ export function generatePermalink(): string {
   // 또는 고유한 값 생성 로직을 여기에 추가
 }
 
-export async function getAllData(): Promise<any[]> {
-  try {
-    const params = {
-      Bucket: 'arts',
-    };
-
-    const data = await s3.listObjectsV2(params).promise();
-    if (!data.Contents) {
-      throw new Error('No data found in Naver Storage');
-    }
-
-    // 객체 목록에서 각 객체의 메타데이터를 가져와서 permalink만 추출하여 배열로 반환
-    const permalinksPromises = data.Contents.map(async (obj) => {
-      const objectParams = {
-        Bucket: params.Bucket,
-        Key: obj.Key,
-      };
-      try {
-        const metadata = await s3.headObject(objectParams).promise();
-        return metadata.Metadata ? metadata.Metadata.permalink : null;
-      } catch (error) {
-        throw new BadRequestException({}, `메타 데이터 조회 실패`);
-      }
-    });
-
-    // 모든 객체의 메타데이터를 가져올 때까지 기다림
-    const permalinks = await Promise.all(permalinksPromises);
-    console.log(permalinks);
-    // 메타데이터가 있는 항목만 필터링
-    const filteredPermalinks = permalinks.filter(
-      (permalink) => permalink !== null,
-    );
-    return filteredPermalinks;
-  } catch (error) {
-    throw new Error('Failed to get data from Naver Storage: ' + error.message);
-  }
-}
+// export async function getAllData(): Promise<any[]> {
+//   try {
+//     const params = {
+//       Bucket: 'arts',
+//     };
+//
+//     const data = await s3.listObjectsV2(params).promise();
+//     if (!data.Contents) {
+//       throw new Error('No data found in Naver Storage');
+//     }
+//
+//     // 객체 목록에서 각 객체의 메타데이터를 가져와서 permalink만 추출하여 배열로 반환
+//     const permalinksPromises = data.Contents.map(async (obj) => {
+//       const objectParams = {
+//         Bucket: params.Bucket,
+//         Key: obj.Key,
+//       };
+//       try {
+//         const metadata = await s3.headObject(objectParams).promise();
+//         return metadata.Metadata ? metadata.Metadata.permalink : null;
+//       } catch (error) {
+//         throw new BadRequestException({}, `메타 데이터 조회 실패`);
+//       }
+//     });
+//
+//     // 모든 객체의 메타데이터를 가져올 때까지 기다림
+//     const permalinks = await Promise.all(permalinksPromises);
+//     console.log(permalinks);
+//     // 메타데이터가 있는 항목만 필터링
+//     const filteredPermalinks = permalinks.filter(
+//       (permalink) => permalink !== null,
+//     );
+//     return filteredPermalinks;
+//   } catch (error) {
+//     throw new Error('Failed to get data from Naver Storage: ' + error.message);
+//   }
+// }
 
 // export async function getAudioDatas(permalink: string): Promise<Readable> {
 //   try {
